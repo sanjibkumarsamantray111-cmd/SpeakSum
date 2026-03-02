@@ -1,140 +1,145 @@
 import customtkinter as ctk
+import threading
 from mic_test import listen_once
-
+import re
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
 class AICalculatorUI:
+
     def __init__(self, root):
         self.root = root
-        self.root.geometry("1100x600")
+        self.root.geometry("1100x650")
         self.root.title("AI Voice Calculator")
-        self.root.configure(fg_color="#0f0fa8")
 
-        self.expression = ""
+        # Store spoken numbers
+        self.numbers = []
 
-        self.build_ui()
-
-    def build_ui(self):
-
-        # ================= LEFT MAIN AREA =================
-        self.main_frame = ctk.CTkFrame(
-            self.root,
-            fg_color="#1414b8",
-            corner_radius=0
-        )
-        self.main_frame.pack(side="left", fill="both", expand=True)
+        # Main frame
+        self.main_frame = ctk.CTkFrame(root, fg_color="#8E8CD8")
+        self.main_frame.pack(fill="both", expand=True)
 
         # Title
-        title = ctk.CTkLabel(
+        self.title_label = ctk.CTkLabel(
             self.main_frame,
-            text="AI VOICE CALC ✦",
-            font=("Arial", 20, "bold"),
-            text_color="#cfd2ff"
+            text="VOICE CALC ✨",
+            font=("Arial", 24, "bold")
         )
-        title.pack(anchor="nw", padx=30, pady=30)
+        self.title_label.place(x=40, y=30)
 
         # Display
         self.display_label = ctk.CTkLabel(
             self.main_frame,
-            text="Say a number...",
-            font=("Arial", 60, "italic"),
-            text_color="#6f7cff"
+            text="Say numbers...",
+            font=("Arial", 50, "italic")
         )
-        self.display_label.pack(expand=True)
+        self.display_label.place(relx=0.5, rely=0.35, anchor="center")
 
         # Mic Button
-        self.mic_active = False
-
         self.mic_button = ctk.CTkButton(
             self.main_frame,
-            text="🎙️❌",   # mic with slash initially
-            font=("Arial", 40),
-            width=180,
-            height=120,
-            corner_radius=60,
-            fg_color="#3c3cff",
-            hover_color="#5757ff",
-            command=self.voice_input
+            text="🎤",
+            width=200,
+            height=80,
+            corner_radius=40,
+            font=("Arial", 28),
+            command=self.start_listening
         )
-        self.mic_button.pack(pady=20)
+        self.mic_button.place(relx=0.5, rely=0.75, anchor="center")
 
-        # ================= RIGHT SIDE PANEL =================
-        self.side_panel = ctk.CTkFrame(
-            self.root,
-            width=180,
-            fg_color="#1a1ad1",
-            corner_radius=0
-        )
-        self.side_panel.pack(side="right", fill="y")
+        # Buttons
+        self.create_buttons()
 
-        button_data = [
-            ("C", self.clear, "#ff4d4d"),
-            ("÷", None, "#2e2eff"),
-            ("×", None, "#2e2eff"),
-            ("−", None, "#2e2eff"),
-            ("=", self.calculate, "#5ea2ff"),
-        ]
+    # =========================
+    # THREADING
+    # =========================
 
-        for text, command, color in button_data:
-            btn = ctk.CTkButton(
-                self.side_panel,
-                text=text,
-                font=("Arial", 24, "bold"),
-                width=120,
-                height=90,
-                corner_radius=30,
-                fg_color=color,
-                hover_color="#6f7cff",
-                command=command
-            )
-            btn.pack(pady=20)
+    def start_listening(self):
+        thread = threading.Thread(target=self.listen)
+        thread.daemon = True
+        thread.start()
 
-    # 🎤 MIC LOGIC CONNECTED HERE
-    def voice_input(self):
-        self.mic_button.configure(text="🎙️")
-        self.root.update()
-
-        new_expr = listen_once()
-
-        self.mic_button.configure(text="🎙️❌")
-
-        if new_expr:
-            cleaned = new_expr.replace(" + ", "+")
-
-            if self.expression:
-                self.expression += "+" + cleaned
-            else:
-                self.expression = cleaned
-
-            self.display_label.configure(
-                text=self.expression,
-                font=("Arial", 50, "bold"),
-                text_color="white"
-            )
-
-    # 🟰 CALCULATION
-    def calculate(self):
+    def listen(self):
         try:
-            result = eval(self.expression)
-            self.display_label.configure(
-                text=str(result),
-                font=("Arial", 70, "bold"),
-                text_color="#ffffff"
-            )
+            text = listen_once()
+            if text:
+                self.root.after(0, lambda: self.process_text(text))
         except:
-            self.display_label.configure(text="Error")
+            self.root.after(0, lambda: self.display_label.configure(text="Error"))
 
-    # 🧹 CLEAR
-    def clear(self):
-        self.expression = ""
-        self.display_label.configure(
-            text="Say a number...",
-            font=("Arial", 60, "italic"),
-            text_color="#6f7cff"
-        )
+    # =========================
+    # PROCESS SPOKEN TEXT
+    # =========================
 
+    def process_text(self, text):
+        try:
+            numbers_found = re.findall(r"\d+", text)
+            
+            if not numbers_found:
+                self.display_label.configure(text="Invalid")
+                return
+
+            for num in numbers_found:
+                self.numbers.append(float(num))
+
+
+            # Show numbers on screen
+            display_text = " + ".join(str(int(n)) for n in self.numbers)
+            self.display_label.configure(text=display_text)
+
+        except Exception as e:
+            print("DEBUG ERROR:", e)
+            self.display_label.configure(text="Invalid")
+
+    # =========================
+    # BUTTONS
+    # =========================
+
+    def create_buttons(self):
+
+        buttons = ["C","-", "÷", "="]
+        y_positions = [150, 250, 350, 450]
+
+        for btn_text, y in zip(buttons, y_positions):
+
+            btn = ctk.CTkButton(
+                self.main_frame,
+                text=btn_text,
+                width=120,
+                height=70,
+                corner_radius=30,
+                font=("Arial", 24),
+                command=lambda t=btn_text: self.button_clicked(t)
+            )
+
+            btn.place(x=950, y=y)
+
+    # =========================
+    # BUTTON LOGIC
+    # =========================
+
+    def button_clicked(self, text):
+
+        if text == "C":
+            self.numbers = []
+            self.display_label.configure(text="Say numbers...")
+            return
+
+        if text == "=":
+            if not self.numbers:
+                return
+
+            total = sum(self.numbers)
+            self.display_label.configure(text=str(total))
+
+            # Reset for next calculation
+            self.numbers = [total]
+
+
+# =========================
+# RUN APP
+# =========================
 
 if __name__ == "__main__":
     root = ctk.CTk()
